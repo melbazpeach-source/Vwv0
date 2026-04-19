@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useVercel } from '../context/VercelContext';
-import { Search, Loader2, Rocket, Globe, ExternalLink, ChevronRight, Box } from 'lucide-react';
+import { Search, Loader2, Rocket, Globe, ExternalLink, ChevronRight, Box, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { CreateProjectModal } from '../components/CreateProjectModal';
 
 export const ProjectsPage: React.FC = () => {
   const { service } = useVercel();
   const [search, setSearch] = useState('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const { data: projects, isLoading, error } = useQuery({
     queryKey: ['projects'],
@@ -48,23 +50,40 @@ export const ProjectsPage: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2 text-slate-900">Projects</h1>
-          <p className="text-slate-500">Overview of all your Vercel deployments and products.</p>
-        </div>
-        
-        <div className="relative w-full md:w-80">
-           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-           <input 
-              type="text"
-              placeholder="Search projects..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/5 transition-all"
-           />
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight mb-2 text-slate-900">Projects</h1>
+            <p className="text-slate-500">Overview of all your Vercel deployments and products.</p>
+          </div>
+          
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:w-80">
+               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+               <input 
+                  type="text"
+                  placeholder="Search projects..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/5 transition-all"
+               />
+            </div>
+            <button 
+               onClick={() => setIsCreateModalOpen(true)}
+               className="bg-slate-900 hover:bg-black text-white p-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center group"
+               title="New Project"
+            >
+               <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+            </button>
+          </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <CreateProjectModal onClose={() => setIsCreateModalOpen(false)} />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence mode="popLayout">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

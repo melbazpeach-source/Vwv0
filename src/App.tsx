@@ -10,6 +10,7 @@ import { ProjectDetailsPage } from './pages/ProjectDetailsPage';
 import { DeploymentsPage } from './pages/DeploymentsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SetupPage } from './pages/SetupPage';
+import { GitHubAdminPage } from './pages/GitHubAdminPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,6 +38,7 @@ const Root = () => {
             <Route path="/projects/:id" element={<ProjectDetailsPage />} />
             <Route path="/deployments" element={<DeploymentsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/github" element={<GitHubAdminPage />} />
             <Route path="/setup" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>

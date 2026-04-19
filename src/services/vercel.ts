@@ -74,4 +74,28 @@ export class VercelService {
       method: 'PATCH',
     });
   }
+
+  async createProject(name: string, framework?: string) {
+    return this.fetcher<VercelProject>('/v9/projects', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        framework: framework || null,
+      }),
+    });
+  }
+
+  async linkProjectToRepo(projectId: string, repoData: { org: string, repo: string, repoId: number }) {
+    return this.fetcher(`/v9/projects/${projectId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        link: {
+          type: 'github',
+          org: repoData.org,
+          repo: repoData.repo,
+          repoId: repoData.repoId,
+        },
+      }),
+    });
+  }
 }

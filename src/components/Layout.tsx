@@ -1,12 +1,13 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Box, History, Globe, Settings, Users, ArrowRightLeft } from 'lucide-react';
+import { Box, History, Globe, Settings, Users, ArrowRightLeft, Github } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useVercel } from '../context/VercelContext';
 
 const NAV_ITEMS = [
   { icon: Box, label: 'Projects', path: '/' },
   { icon: History, label: 'Deployments', path: '/deployments' },
+  { icon: Github, label: 'GitHub', path: '/github' },
   { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 

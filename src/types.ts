@@ -50,3 +50,11 @@ export interface VercelLogEvent {
   type: 'stdout' | 'stderr';
   created: number;
 }
+
+export interface GitHubAccount {
+  id: number;
+  token: string;
+  username: string;
+  avatarUrl: string;
+  connectedAt: string;
+}
