@@ -129,8 +129,11 @@ export const GitHubAdminPage: React.FC = () => {
 
     try {
       const resp = await fetch(`/api/github/repos?token=${account.token}`);
-      if (!resp.ok) throw new Error('Failed to fetch repositories');
       const data = await resp.json();
+      
+      if (!resp.ok) {
+        throw new Error(data.message || data.error || `Server responded with ${resp.status}`);
+      }
       
       setSyncingRepos(data);
       setAccounts(prev => prev.map(a => a.id === account.id ? { 
@@ -295,66 +298,115 @@ export const GitHubAdminPage: React.FC = () => {
         <div className="lg:col-span-7">
            <div className="bg-slate-100/50 border border-slate-200 rounded-[2.5rem] p-2 min-h-[500px] flex flex-col">
               <div className="bg-white border border-slate-200 rounded-[2.2rem] flex-1 overflow-hidden flex flex-col shadow-sm">
-                 <div className="p-4 border-b border-slate-50 bg-white flex items-center justify-between">
-                    <div className="flex items-center gap-3 px-2">
-                       <RefreshCw className={cn("w-4 h-4 text-slate-400", syncingAccountId && syncingRepos.length === 0 && "animate-spin")} />
-                       <span className="text-sm font-bold text-slate-900">
-                          {syncingAccountId ? 
-                            `Repositories (${syncingRepos.length})` : 
-                            'Select an account to sync'
-                          }
-                       </span>
+                 <div className="p-6 border-b border-slate-50 bg-white space-y-4">
+                    <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-3 px-1">
+                          <RefreshCw className={cn("w-4 h-4 text-slate-400", syncingAccountId && syncingRepos.length === 0 && "animate-spin")} />
+                          <span className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                             {syncingAccountId ? 
+                               `Repositories (${syncingRepos.length})` : 
+                               'Select an account'
+                             }
+                          </span>
+                       </div>
+                       {syncingAccountId && (
+                          <button 
+                             onClick={() => syncingRepos.length > 0 && handleSyncRepos(accounts.find(a => a.id === syncingAccountId)!)}
+                             className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors"
+                          >
+                             Refresh List
+                          </button>
+                       )}
                     </div>
-                    {syncingAccountId && (
+
+                    {syncingAccountId && syncingRepos.length > 0 && (
                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
                           <input 
                              type="text"
-                             placeholder="Filter..."
+                             placeholder="Search repositories by name or owner..."
                              value={searchRepo}
                              onChange={(e) => setSearchRepo(e.target.value)}
-                             className="bg-slate-50 border-none rounded-full py-1.5 pl-9 pr-4 text-xs focus:ring-1 focus:ring-slate-200 w-32 md:w-48"
+                             className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3 pl-11 pr-4 text-sm focus:ring-2 focus:ring-slate-900/5 focus:border-slate-200 focus:bg-white transition-all outline-none"
                           />
                        </div>
                     )}
                  </div>
 
-                 <div className="flex-1 overflow-y-auto p-2">
+                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                     {!syncingAccountId ? (
                        <div className="flex flex-col items-center justify-center h-full text-center p-10 gap-4">
-                          <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center">
-                             <Github className="w-8 h-8 text-slate-200" />
+                          <div className="w-20 h-20 bg-slate-50 rounded-[2.5rem] flex items-center justify-center">
+                             <Github className="w-10 h-10 text-slate-200" />
                           </div>
                           <div className="space-y-1">
-                             <h4 className="text-sm font-bold text-slate-400">No Account Selected</h4>
-                             <p className="text-xs text-slate-400">Click a connected account on the left to view and sync its repositories.</p>
+                             <h4 className="text-sm font-bold text-slate-900">No Account Selected</h4>
+                             <p className="text-xs text-slate-500 leading-relaxed max-w-[200px]">Click a connected account on the left to browse and link its repositories.</p>
                           </div>
                        </div>
                     ) : syncingRepos.length === 0 ? (
-                       <div className="flex flex-col items-center justify-center h-full py-20 gap-4">
-                          <Loader2 className="w-8 h-8 text-slate-200 animate-spin" />
-                          <p className="text-slate-400 text-sm">Fetching your repositories...</p>
+                       <div className="flex flex-col items-center justify-center h-full py-20 gap-6">
+                          <div className="relative">
+                             <div className="absolute inset-0 bg-slate-100 animate-ping rounded-full opacity-20" />
+                             <Loader2 className="w-10 h-10 text-slate-900 animate-spin relative z-10" />
+                          </div>
+                          <div className="text-center space-y-1">
+                             <p className="text-slate-900 font-bold text-sm">Fetching Data</p>
+                             <p className="text-slate-400 text-xs">Accessing GitHub API via your secure token...</p>
+                          </div>
+                       </div>
+                    ) : filteredRepos.length === 0 ? (
+                       <div className="flex flex-col items-center justify-center h-full py-20 text-center gap-4">
+                          <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center">
+                             <Search className="w-8 h-8 text-slate-200" />
+                          </div>
+                          <div className="space-y-1">
+                             <p className="text-sm font-bold text-slate-900">No matching repositories</p>
+                             <p className="text-xs text-slate-400">Try adjusting your search for "{searchRepo}"</p>
+                             <button 
+                                onClick={() => setSearchRepo('')}
+                                className="text-xs font-bold text-slate-900 underline underline-offset-4 mt-2"
+                             >
+                                Clear search
+                             </button>
+                          </div>
                        </div>
                     ) : (
-                       <div className="space-y-1">
+                       <div className="space-y-2">
                           {filteredRepos.map(repo => (
-                             <div key={repo.id} className="p-4 hover:bg-slate-50 rounded-2xl transition-colors group flex items-center justify-between border border-transparent hover:border-slate-100">
-                                <div className="space-y-1 flex-1 min-w-0 pr-4">
+                             <motion.div 
+                                layout
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                key={repo.id} 
+                                className="p-4 bg-white hover:bg-slate-50 rounded-2xl transition-all group flex items-center justify-between border border-transparent hover:border-slate-100 hover:shadow-sm"
+                             >
+                                <div className="space-y-1.5 flex-1 min-w-0 pr-4">
                                    <div className="flex items-center gap-2">
                                       <p className="font-bold text-sm text-slate-900 truncate">{repo.name}</p>
-                                      {repo.description && <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md truncate max-w-[150px]">{repo.description}</span>}
+                                      {repo.description && (
+                                         <span className="text-[10px] font-medium bg-slate-50 text-slate-400 px-1.5 py-0.5 rounded-md truncate max-w-[150px] border border-slate-100">
+                                            {repo.description}
+                                         </span>
+                                      )}
                                    </div>
-                                   <p className="text-[10px] text-slate-400 font-mono tracking-tight">Updated {new Date(repo.updated_at).toLocaleDateString()}</p>
+                                   <div className="flex items-center gap-3">
+                                      <p className="text-[10px] text-slate-400 font-mono tracking-tight flex items-center gap-1.5">
+                                         <RefreshCw className="w-2.5 h-2.5" />
+                                         Updated {new Date(repo.updated_at).toLocaleDateString()}
+                                      </p>
+                                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{repo.owner.login}</p>
+                                   </div>
                                 </div>
 
                                 <button 
                                    onClick={() => setLinkingRepo(repo)}
-                                   className="opacity-0 group-hover:opacity-100 transition-all bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-black flex items-center gap-1.5"
+                                   className="opacity-0 group-hover:opacity-100 transition-all bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-black flex items-center gap-2 shadow-lg shadow-slate-200"
                                 >
                                    <LinkIcon className="w-3.5 h-3.5" />
                                    Link
                                 </button>
-                             </div>
+                             </motion.div>
                           ))}
                        </div>
                     )}
