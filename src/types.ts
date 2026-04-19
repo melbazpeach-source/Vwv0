@@ -57,4 +57,6 @@ export interface GitHubAccount {
   username: string;
   avatarUrl: string;
   connectedAt: string;
+  lastSyncedAt?: string;
+  syncStatus?: 'Synced' | 'Out of Sync' | 'Syncing' | 'Error';
 }

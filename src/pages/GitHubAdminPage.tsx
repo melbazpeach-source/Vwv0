@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Github, Plus, X, ExternalLink, ShieldCheck, Check, Loader2, AlertCircle, RefreshCw, Link as LinkIcon, Search } from 'lucide-react';
+import { Github, Plus, X, ExternalLink, ShieldCheck, Check, Loader2, AlertCircle, RefreshCw, Link as LinkIcon, Search, Clock, HelpCircle, Key, Settings, MousePointer2 } from 'lucide-react';
 import { GitHubAccount, VercelProject } from '../types';
 import { cn } from '../lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useVercel } from '../context/VercelContext';
+import { formatDistanceToNow } from 'date-fns';
 
 interface GitHubRepo {
   id: number;
@@ -25,6 +26,7 @@ export const GitHubAdminPage: React.FC = () => {
   });
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConfigGuide, setShowConfigGuide] = useState(false);
   
   // Sync state
   const [syncingAccountId, setSyncingAccountId] = useState<number | null>(null);
@@ -72,7 +74,11 @@ export const GitHubAdminPage: React.FC = () => {
              setError('Maximum of 3 GitHub accounts reached.');
              return prev;
           }
-          return [...prev, { ...payload, connectedAt: new Date().toISOString() }];
+          return [...prev, { 
+            ...payload, 
+            connectedAt: new Date().toISOString(),
+            syncStatus: 'Out of Sync'
+          }];
         });
         setConnecting(false);
         setError(null);
@@ -88,9 +94,17 @@ export const GitHubAdminPage: React.FC = () => {
     setError(null);
     try {
       const resp = await fetch('/api/auth/github/url');
-      if (!resp.ok) throw new Error('Failed to get auth URL');
-      const { url } = await resp.json();
+      const data = await resp.json();
       
+      if (!resp.ok) {
+        if (data.error?.includes('not configured')) {
+          setShowConfigGuide(true);
+          throw new Error('GitHub configuration missing.');
+        }
+        throw new Error(data.error || 'Failed to get auth URL');
+      }
+
+      const { url } = data;
       const width = 600;
       const height = 700;
       const left = window.screenX + (window.outerWidth - width) / 2;
@@ -104,17 +118,29 @@ export const GitHubAdminPage: React.FC = () => {
   };
 
   const handleSyncRepos = async (account: GitHubAccount) => {
+    // Prevent concurrent syncs for the same account
+    if (account.syncStatus === 'Syncing') return;
+
     setSyncingAccountId(account.id);
-    setSyncingRepos([]);
     setError(null);
+    
+    // Update local status to syncing
+    setAccounts(prev => prev.map(a => a.id === account.id ? { ...a, syncStatus: 'Syncing' } : a));
+
     try {
       const resp = await fetch(`/api/github/repos?token=${account.token}`);
       if (!resp.ok) throw new Error('Failed to fetch repositories');
       const data = await resp.json();
+      
       setSyncingRepos(data);
+      setAccounts(prev => prev.map(a => a.id === account.id ? { 
+        ...a, 
+        syncStatus: 'Synced', 
+        lastSyncedAt: new Date().toISOString() 
+      } : a));
     } catch (err: any) {
       setError(`Sync failed: ${err.message}`);
-      setSyncingAccountId(null);
+      setAccounts(prev => prev.map(a => a.id === account.id ? { ...a, syncStatus: 'Error' } : a));
     }
   };
 
@@ -133,9 +159,18 @@ export const GitHubAdminPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-10 pb-20">
-      <div className="max-w-2xl">
-        <h1 className="text-3xl font-bold tracking-tight mb-2 text-slate-900">GitHub Connections</h1>
-        <p className="text-slate-500">Manage multiple GitHub accounts for your deployments.</p>
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 max-w-4xl">
+        <div className="max-w-2xl">
+          <h1 className="text-3xl font-bold tracking-tight mb-2 text-slate-900">GitHub Connections</h1>
+          <p className="text-slate-500">Manage multiple GitHub accounts for your deployments.</p>
+        </div>
+        <button 
+          onClick={() => setShowConfigGuide(true)}
+          className="inline-flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-slate-900 transition-colors bg-white border border-slate-200 px-4 py-2 rounded-2xl shadow-sm"
+        >
+          <HelpCircle className="w-4 h-4" />
+          Setup Guide
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
@@ -158,37 +193,67 @@ export const GitHubAdminPage: React.FC = () => {
                     exit={{ opacity: 0, scale: 0.95 }}
                     key={account.id} 
                     className={cn(
-                      "p-4 flex items-center justify-between group transition-all cursor-pointer",
+                      "p-4 group transition-all cursor-pointer",
                       syncingAccountId === account.id ? "bg-slate-50 shadow-inner" : "hover:bg-slate-50/50"
                     )}
                     onClick={() => handleSyncRepos(account)}
                   >
-                    <div className="flex items-center gap-3">
-                      <img 
-                        src={account.avatarUrl} 
-                        alt={account.username}
-                        referrerPolicy="no-referrer"
-                        className="w-10 h-10 rounded-xl border border-slate-100 shadow-sm"
-                      />
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-bold text-sm text-slate-900">{account.username}</p>
-                          <Check className="w-3 h-3 text-emerald-500" />
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <img 
+                          src={account.avatarUrl} 
+                          alt={account.username}
+                          referrerPolicy="no-referrer"
+                          className="w-10 h-10 rounded-xl border border-slate-100 shadow-sm"
+                        />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-bold text-sm text-slate-900">{account.username}</p>
+                            <Check className="w-3 h-3 text-emerald-500" />
+                          </div>
+                          <div className={cn(
+                            "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider mt-1",
+                            account.syncStatus === 'Synced' ? "bg-emerald-50 text-emerald-600" :
+                            account.syncStatus === 'Syncing' ? "bg-blue-50 text-blue-600 animate-pulse" :
+                            account.syncStatus === 'Error' ? "bg-rose-50 text-rose-600" :
+                            "bg-slate-100 text-slate-500"
+                          )}>
+                            <div className={cn(
+                              "w-1 h-1 rounded-full",
+                              account.syncStatus === 'Synced' ? "bg-emerald-500" :
+                              account.syncStatus === 'Syncing' ? "bg-blue-500" :
+                              account.syncStatus === 'Error' ? "bg-rose-500" :
+                              "bg-slate-400"
+                            )} />
+                            {account.syncStatus || 'Pending'}
+                          </div>
                         </div>
-                        <p className="text-[10px] text-slate-400 font-mono">
-                          LD: {new Date(account.connectedAt).toLocaleDateString()}
-                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleSyncRepos(account); }}
+                          disabled={account.syncStatus === 'Syncing'}
+                          className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-lg transition-all"
+                          title="Sync Now"
+                        >
+                          <RefreshCw className={cn("w-4 h-4", account.syncStatus === 'Syncing' && "animate-spin")} />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); removeAccount(account.id); }}
+                          className="p-2 hover:bg-rose-50 text-slate-300 hover:text-rose-500 rounded-lg transition-all"
+                          title="Remove Account"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); removeAccount(account.id); }}
-                        className="p-2 hover:bg-rose-50 text-slate-300 hover:text-rose-500 rounded-lg transition-all"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
+                    
+                    {account.lastSyncedAt && (
+                      <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium pl-1">
+                        <Clock className="w-3 h-3" />
+                        Synced {formatDistanceToNow(new Date(account.lastSyncedAt))} ago
+                      </div>
+                    )}
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -365,7 +430,84 @@ export const GitHubAdminPage: React.FC = () => {
                </motion.div>
             </div>
          )}
+
+         {showConfigGuide && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+               <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }} 
+                  exit={{ opacity: 0 }} 
+                  onClick={() => setShowConfigGuide(false)}
+                  className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" 
+               />
+               <motion.div 
+                  initial={{ opacity: 0, y: 40, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 40, scale: 0.95 }}
+                  className="relative w-full max-w-lg bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col p-8 md:p-12 space-y-8"
+               >
+                  <button 
+                    onClick={() => setShowConfigGuide(false)}
+                    className="absolute top-6 right-6 p-2 hover:bg-slate-50 rounded-xl text-slate-300 hover:text-slate-900 transition-all"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+
+                  <div className="space-y-3">
+                     <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center mb-6">
+                        <Key className="w-6 h-6 text-white" />
+                     </div>
+                     <h2 className="text-3xl font-black tracking-tight text-slate-900 leading-none">Complete Setup</h2>
+                     <p className="text-slate-500 leading-relaxed font-medium">To connect your GitHub accounts, you need to provide your OAuth credentials in the AI Studio platform.</p>
+                  </div>
+
+                  <div className="space-y-6">
+                     <div className="flex gap-5">
+                        <div className="flex-shrink-0 w-8 h-8 bg-slate-50 rounded-full flex items-center justify-center text-xs font-black text-slate-400 border border-slate-100">1</div>
+                        <div className="space-y-1">
+                           <p className="text-sm font-bold text-slate-900">Open AI Studio Settings</p>
+                           <p className="text-xs text-slate-500 leading-relaxed">Look for the <Settings className="inline w-3 h-3 mx-0.5" /> gear icon in the **AI Studio UI sidebar** (not in this app).</p>
+                        </div>
+                     </div>
+
+                     <div className="flex gap-5">
+                        <div className="flex-shrink-0 w-8 h-8 bg-slate-50 rounded-full flex items-center justify-center text-xs font-black text-slate-400 border border-slate-100">2</div>
+                        <div className="space-y-1">
+                           <p className="text-sm font-bold text-slate-900">Enter Secrets</p>
+                           <p className="text-xs text-slate-500 leading-relaxed">Add two variables in the Secrets/Settings panel:</p>
+                           <div className="mt-2 space-y-1.5 p-3 bg-slate-50 rounded-xl border border-slate-100 border-dashed">
+                              <code className="block text-[10px] font-black text-slate-500 tracking-widest uppercase">GITHUB_CLIENT_ID</code>
+                              <code className="block text-[10px] font-black text-slate-500 tracking-widest uppercase">GITHUB_CLIENT_SECRET</code>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="flex gap-5">
+                        <div className="flex-shrink-0 w-8 h-8 bg-slate-50 rounded-full flex items-center justify-center text-xs font-black text-slate-400 border border-slate-100">3</div>
+                        <div className="space-y-1">
+                           <p className="text-sm font-bold text-slate-900">Save & Restart</p>
+                           <p className="text-xs text-slate-500 leading-relaxed">Once you add them, the platform will automatically restart your app with the new credentials active.</p>
+                        </div>
+                     </div>
+                  </div>
+
+                  <div className="pt-4">
+                     <button 
+                        onClick={() => setShowConfigGuide(false)}
+                        className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-black transition-all flex items-center justify-center gap-3 shadow-lg shadow-slate-200"
+                     >
+                        Got it, I'll add them now
+                        <ArrowRight className="w-5 h-5" />
+                     </button>
+                  </div>
+               </motion.div>
+            </div>
+         )}
       </AnimatePresence>
     </div>
   );
 };
+
+const ArrowRight = ({ className }: { className?: string }) => (
+  <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+);
